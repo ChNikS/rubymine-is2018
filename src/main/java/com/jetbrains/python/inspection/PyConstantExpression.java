@@ -32,7 +32,7 @@ public class PyConstantExpression extends PyInspection {
             super(holder, session);
         }
 
-        enum NodeOperation { GT, LT, EQEQ, NE, AND, OR, NOT }
+        enum NodeOperation { GT, LT, EQEQ, NE, AND, OR, NOT, PLUS, MINUS }
 
         @Override
         public void visitPyIfStatement(PyIfStatement node) {
@@ -174,6 +174,9 @@ public class PyConstantExpression extends PyInspection {
                 }
 
                 //to do add plus, minus, etc
+                if(operation == NodeOperation.PLUS) {
+                    return new NodeResult(leftNode.getIntValue()+rightNode.getIntValue());
+                }
 
             }
             //if different types it's wrong show notification ?
@@ -198,6 +201,9 @@ public class PyConstantExpression extends PyInspection {
                 return NodeOperation.OR;
             if (operation.equals("Py:NOT_KEYWORD"))
                 return NodeOperation.NOT;
+            //math operations
+            if (operation.equals("Py:PLUS"))
+                return NodeOperation.PLUS;
 
             //to do add unsupported operation exception
             return null;
