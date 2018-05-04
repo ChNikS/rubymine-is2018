@@ -4,18 +4,12 @@ import com.intellij.codeInspection.LocalInspectionToolSession;
 import com.intellij.codeInspection.ProblemsHolder;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiElementVisitor;
-import com.intellij.psi.PsiWhiteSpace;
-import com.jetbrains.python.PyTokenTypes;
 import com.jetbrains.python.inspections.PyInspection;
 import com.jetbrains.python.inspections.PyInspectionVisitor;
 import com.jetbrains.python.psi.*;
-import gherkin.lexer.No;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import javax.xml.soap.Node;
-import java.util.ArrayList;
-import java.util.List;
 
 public class PyConstantExpression extends PyInspection {
 
@@ -47,27 +41,11 @@ public class PyConstantExpression extends PyInspection {
         private void processIfPart(@NotNull PyIfPart pyIfPart) {
             final PyExpression condition = pyIfPart.getCondition();
 
-           /* if (condition instanceof PyBoolLiteralExpression) {
-                //registerProblem(condition, "The condition is always " + ((PyBoolLiteralExpression) condition).getValue());
-                //process BoolLiteral
-                //showAlert(((PyBoolLiteralExpression) condition).getValue(), condition);
-            }*/
-
-            //baseline handler
             NodeResult result;
             result = handleIfNode(condition);
             if (result.getType() == NodeResult.NodeResultType.BOOL) {
                 showAlert(result.getBoolValue(), condition);
             }
-
-            /*if (condition instanceof PyBinaryExpression) {
-                result = processBinaryExpression((PyBinaryExpression)condition);
-                if (result.getType() == NodeResult.NodeResultType.BOOL) {
-                    showAlert(result.getBoolValue(), condition);
-                }
-            }*/
-
-            //showAlert(finalResult, condition);
         }
 
 
@@ -94,16 +72,16 @@ public class PyConstantExpression extends PyInspection {
             return new NodeResult();
         }
 
-        private NodeResult processBinaryExpression(PyBinaryExpression condition) {
+        private NodeResult processBinaryExpression(PyBinaryExpression element) {
 
             //only two children that can be interesting => no need in array to save memory
             NodeResult leftNode;
             NodeResult rightNode;
 
             //get condition expression
-            leftNode = handleIfNode(condition.getLeftExpression());
+            leftNode = handleIfNode(element.getLeftExpression());
 
-            NodeOperation operation = getNodeOperation(condition);
+            NodeOperation operation = getNodeOperation(element);
 
             //always true no need in checking right child
             if (operation == NodeOperation.OR && (leftNode.getType() == NodeResult.NodeResultType.BOOL) && leftNode.getBoolValue()) {
@@ -115,10 +93,9 @@ public class PyConstantExpression extends PyInspection {
                 return new NodeResult(false);
             }
             //get right node result
-            rightNode = handleIfNode(condition.getRightExpression());
+            rightNode = handleIfNode(element.getRightExpression());
 
-
-            return handleFinalResult(leftNode, rightNode, condition);
+            return handleFinalResult(leftNode, rightNode, element);
 
         }
 
@@ -133,7 +110,7 @@ public class PyConstantExpression extends PyInspection {
         }
 
         private NodeResult processPrefixExpression(PyPrefixExpression element) {
-            //check if not expression
+            //check if not-expression
             if(getNodeOperation(element) == NodeOperation.NOT) {
                NodeResult result = handleIfNode(element.getLastChild());
                return handleFinalResult(new NodeResult(), result, element);
@@ -150,8 +127,19 @@ public class PyConstantExpression extends PyInspection {
                 return new NodeResult();
             }
             NodeOperation operation = getNodeOperation(element);
+            if(operation == null) {
+                return new NodeResult();
+            }
 
             if (leftNode.getType() == NodeResult.NodeResultType.SKIP && rightNode.getType() == NodeResult.NodeResultType.BOOL && operation != NodeOperation.NOT) {
+                if(operation == NodeOperation.OR && rightNode.getBoolValue()) {
+                    return new NodeResult(true);
+                }
+                
+                if(operation == NodeOperation.AND && !rightNode.getBoolValue()) {
+                    return new NodeResult(false);
+                }
+
                 showAlert(rightNode.getBoolValue(), element.getLastChild());
                 //SKIP result
                 return new NodeResult();
@@ -209,7 +197,7 @@ public class PyConstantExpression extends PyInspection {
                 int leftNodeValue = leftNode.getType() == NodeResult.NodeResultType.INT ? leftNode.getIntValue() : (leftNode.getBoolValue() ? 1 : 0);
                 int rightNodeValue = rightNode.getType() == NodeResult.NodeResultType.INT ? rightNode.getIntValue() : (rightNode.getBoolValue() ? 1 : 0);
 
-                //handle int operations
+                //comparison operations support
                 if (operation == NodeOperation.GT) {
                     return new NodeResult(leftNodeValue > rightNodeValue);
                 }
@@ -223,7 +211,7 @@ public class PyConstantExpression extends PyInspection {
                     return new NodeResult(leftNodeValue != rightNodeValue);
                 }
 
-                //to do add plus, minus, etc
+                //arithmetic operations support
                 if(operation == NodeOperation.PLUS) {
                     return new NodeResult(leftNodeValue + rightNodeValue);
                 }
@@ -237,7 +225,7 @@ public class PyConstantExpression extends PyInspection {
                 }
 
             }
-            //show extra message something wrong with logic?
+
             return new NodeResult();
         }
 
@@ -250,7 +238,7 @@ public class PyConstantExpression extends PyInspection {
             if(condition instanceof  PyPrefixExpression) {
                 operation = ((PyPrefixExpression) condition).getOperator().toString();
             }
-
+            //comparison operations
             if (operation.equals("Py:GT"))
                 return NodeOperation.GT;
             if (operation.equals("Py:LT"))
@@ -259,6 +247,7 @@ public class PyConstantExpression extends PyInspection {
                 return NodeOperation.EQEQ;
             if (operation.equals("Py:NE"))
                 return NodeOperation.NE;
+            //logic operations
             if (operation.equals("Py:AND_KEYWORD"))
                 return NodeOperation.AND;
             if (operation.equals("Py:OR_KEYWORD"))
@@ -273,7 +262,6 @@ public class PyConstantExpression extends PyInspection {
             if (operation.equals("Py:MULT"))
                 return NodeOperation.MULT;
 
-            //to do add unsupported operation exception
             return null;
         }
 
