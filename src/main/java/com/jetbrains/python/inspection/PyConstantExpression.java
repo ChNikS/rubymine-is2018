@@ -33,7 +33,7 @@ public class PyConstantExpression extends PyInspection {
             super(holder, session);
         }
 
-        enum NodeOperation { GT, LT, EQEQ, NE, AND, OR, NOT, PLUS, MINUS }
+        enum NodeOperation { GT, LT, EQEQ, NE, AND, OR, NOT, PLUS, MINUS, MULT }
 
         @Override
         public void visitPyIfStatement(PyIfStatement node) {
@@ -123,7 +123,8 @@ public class PyConstantExpression extends PyInspection {
         }
 
         private NodeResult processIntExpression(PyNumericLiteralExpression element) {
-            return new NodeResult(element.getBigIntegerValue().intValue());
+            NodeResult result = element.isIntegerLiteral() ? new NodeResult(element.getBigIntegerValue().intValue()) : new NodeResult();
+            return result;
         }
 
         private NodeResult processParenthesizedExpression(PyParenthesizedExpression element) {
@@ -231,6 +232,10 @@ public class PyConstantExpression extends PyInspection {
                     return new NodeResult(leftNodeValue - rightNodeValue);
                 }
 
+                if(operation == NodeOperation.MULT) {
+                    return new NodeResult(leftNodeValue - rightNodeValue);
+                }
+
             }
             //show extra message something wrong with logic?
             return new NodeResult();
@@ -265,6 +270,8 @@ public class PyConstantExpression extends PyInspection {
                 return NodeOperation.PLUS;
             if (operation.equals("Py:MINUS"))
                 return NodeOperation.MINUS;
+            if (operation.equals("Py:MULT"))
+                return NodeOperation.MULT;
 
             //to do add unsupported operation exception
             return null;
