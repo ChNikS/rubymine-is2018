@@ -84,6 +84,10 @@ public class PyConstantExpression extends PyInspection {
             if (element instanceof PyParenthesizedExpression) {
                 return processParenthesizedExpression((PyParenthesizedExpression) element);
             }
+            //not support
+            if (element instanceof PyPrefixExpression) {
+                return processPrefixExpression((PyPrefixExpression) element);
+            }
 
             //empty unhandled result
             return new NodeResult();
@@ -126,6 +130,20 @@ public class PyConstantExpression extends PyInspection {
             return handleIfNode(element.getFirstChild().getNextSibling());
         }
 
+        private NodeResult processPrefixExpression(PyPrefixExpression element) {
+            //check if not expression
+            if(getNodeOperation(element) == NodeOperation.NOT) {
+                //get inner value
+                NodeResult result = handleIfNode(element.getLastChild());
+                if(result.getType() == NodeResult.NodeResultType.BOOL) {
+                    return new NodeResult(!result.getBoolValue());
+                }
+
+            }
+
+            return new NodeResult();
+        }
+
         private NodeResult handleFinalResult(NodeResult leftNode, NodeResult rightNode, PsiElement condition) {
 
             if (leftNode.getType() == NodeResult.NodeResultType.SKIP && rightNode.getType() == NodeResult.NodeResultType.BOOL) {
@@ -143,7 +161,7 @@ public class PyConstantExpression extends PyInspection {
             NodeOperation operation = getNodeOperation(condition);
 
             if(leftNode.getType() == NodeResult.NodeResultType.BOOL && leftNode.getType() == rightNode.getType()) {
-                //handle logic operation AND, OR, NOT
+                //handle logic operation AND, OR
                 if (operation == NodeOperation.AND) {
                     return new NodeResult(leftNode.getBoolValue() && rightNode.getBoolValue());
 
@@ -185,7 +203,13 @@ public class PyConstantExpression extends PyInspection {
 
 
         private static NodeOperation getNodeOperation(PsiElement condition) {
-            String operation = ((PyBinaryExpression) condition).getOperator().toString();
+            String operation = "";
+            if(condition instanceof PyBinaryExpression) {
+                operation = ((PyBinaryExpression) condition).getOperator().toString();
+            }
+            if(condition instanceof  PyPrefixExpression) {
+                operation = ((PyPrefixExpression) condition).getOperator().toString();
+            }
 
             if (operation.equals("Py:GT"))
                 return NodeOperation.GT;
