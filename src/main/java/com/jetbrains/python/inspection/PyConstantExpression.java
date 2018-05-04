@@ -9,6 +9,7 @@ import com.jetbrains.python.PyTokenTypes;
 import com.jetbrains.python.inspections.PyInspection;
 import com.jetbrains.python.inspections.PyInspectionVisitor;
 import com.jetbrains.python.psi.*;
+import gherkin.lexer.No;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -226,6 +227,10 @@ public class PyConstantExpression extends PyInspection {
                     return new NodeResult(leftNodeValue + rightNodeValue);
                 }
 
+                if(operation == NodeOperation.MINUS) {
+                    return new NodeResult(leftNodeValue - rightNodeValue);
+                }
+
             }
             //show extra message something wrong with logic?
             return new NodeResult();
@@ -258,6 +263,8 @@ public class PyConstantExpression extends PyInspection {
             //math operations
             if (operation.equals("Py:PLUS"))
                 return NodeOperation.PLUS;
+            if (operation.equals("Py:MINUS"))
+                return NodeOperation.MINUS;
 
             //to do add unsupported operation exception
             return null;
