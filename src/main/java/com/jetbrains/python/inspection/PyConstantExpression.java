@@ -63,12 +63,11 @@ public class PyConstantExpression extends PyInspection {
             if (element instanceof PyParenthesizedExpression) {
                 return processParenthesizedExpression((PyParenthesizedExpression) element);
             }
-            //not support
+
             if (element instanceof PyPrefixExpression) {
                 return processPrefixExpression((PyPrefixExpression) element);
             }
 
-            //empty unhandled result
             return new NodeResult();
         }
 
@@ -135,7 +134,7 @@ public class PyConstantExpression extends PyInspection {
                 if(operation == NodeOperation.OR && rightNode.getBoolValue()) {
                     return new NodeResult(true);
                 }
-                
+
                 if(operation == NodeOperation.AND && !rightNode.getBoolValue()) {
                     return new NodeResult(false);
                 }
@@ -221,7 +220,7 @@ public class PyConstantExpression extends PyInspection {
                 }
 
                 if(operation == NodeOperation.MULT) {
-                    return new NodeResult(leftNodeValue - rightNodeValue);
+                    return new NodeResult(leftNodeValue * rightNodeValue);
                 }
 
             }
