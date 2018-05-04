@@ -94,22 +94,23 @@ public class PyConstantExpression extends PyInspection {
         }
 
         private NodeResult processBinaryExpression(PyBinaryExpression condition) {
-            //only two children that can be interesting => no need in array to save memory
 
+            //only two children that can be interesting => no need in array to save memory
             NodeResult leftNode;
             NodeResult rightNode;
 
-
-            leftNode = handleIfNode(condition.getLeftExpression());
             //get condition expression
+            leftNode = handleIfNode(condition.getLeftExpression());
 
             NodeOperation operation = getNodeOperation(condition);
+
+            //always true no need in checking right child
             if (operation == NodeOperation.OR && (leftNode.getType() == NodeResult.NodeResultType.BOOL) && leftNode.getBoolValue()) {
-                //always true no need in checking right child
                 return new NodeResult(true);
             }
+
+            //always false no need in checking right child
             if (operation == NodeOperation.AND && (leftNode.getType() == NodeResult.NodeResultType.BOOL) && !leftNode.getBoolValue()) {
-                //always false no need in checking right child
                 return new NodeResult(false);
             }
             //get right node result
@@ -121,7 +122,6 @@ public class PyConstantExpression extends PyInspection {
         }
 
         private NodeResult processIntExpression(PyNumericLiteralExpression element) {
-            //just get value
             return new NodeResult(element.getBigIntegerValue().intValue());
         }
 
@@ -133,71 +133,101 @@ public class PyConstantExpression extends PyInspection {
         private NodeResult processPrefixExpression(PyPrefixExpression element) {
             //check if not expression
             if(getNodeOperation(element) == NodeOperation.NOT) {
-                //get inner value
-                NodeResult result = handleIfNode(element.getLastChild());
-                if(result.getType() == NodeResult.NodeResultType.BOOL) {
-                    return new NodeResult(!result.getBoolValue());
-                }
-
+               NodeResult result = handleIfNode(element.getLastChild());
+               return handleFinalResult(new NodeResult(), result, element);
             }
 
             return new NodeResult();
         }
 
-        private NodeResult handleFinalResult(NodeResult leftNode, NodeResult rightNode, PsiElement condition) {
+        private NodeResult handleFinalResult(NodeResult leftNode, NodeResult rightNode, PsiElement element) {
 
-            if (leftNode.getType() == NodeResult.NodeResultType.SKIP && rightNode.getType() == NodeResult.NodeResultType.BOOL) {
-                showAlert(rightNode.getBoolValue(), condition.getLastChild());
+            //nothing to do
+            if(rightNode.getType() == NodeResult.NodeResultType.SKIP && leftNode.getType() == NodeResult.NodeResultType.SKIP) {
+                //SKIP result
+                return new NodeResult();
+            }
+            NodeOperation operation = getNodeOperation(element);
+
+            if (leftNode.getType() == NodeResult.NodeResultType.SKIP && rightNode.getType() == NodeResult.NodeResultType.BOOL && operation != NodeOperation.NOT) {
+                showAlert(rightNode.getBoolValue(), element.getLastChild());
                 //SKIP result
                 return new NodeResult();
             }
 
             if (rightNode.getType() == NodeResult.NodeResultType.SKIP && leftNode.getType() == NodeResult.NodeResultType.BOOL) {
-                showAlert(leftNode.getBoolValue(), condition.getFirstChild());
+                showAlert(leftNode.getBoolValue(), element.getFirstChild());
                 //SKIP result
                 return new NodeResult();
             }
 
-            NodeOperation operation = getNodeOperation(condition);
-
-            if(leftNode.getType() == NodeResult.NodeResultType.BOOL && leftNode.getType() == rightNode.getType()) {
-                //handle logic operation AND, OR
-                if (operation == NodeOperation.AND) {
+            if(operation == NodeOperation.AND) {
+                if(leftNode.getType() == NodeResult.NodeResultType.BOOL && leftNode.getType() == rightNode.getType()) {
                     return new NodeResult(leftNode.getBoolValue() && rightNode.getBoolValue());
+                }
+
+                if(leftNode.getType() == NodeResult.NodeResultType.INT && leftNode.getType() == rightNode.getType()) {
+                    return new NodeResult(leftNode.getIntValue()>0 && rightNode.getIntValue()>0);
 
                 }
-                if (operation == NodeOperation.OR) {
+
+                if((leftNode.getType() == NodeResult.NodeResultType.BOOL || leftNode.getType() == NodeResult.NodeResultType.INT) && (rightNode.getType() == NodeResult.NodeResultType.BOOL || rightNode.getType() == NodeResult.NodeResultType.INT) && leftNode.getType() != rightNode.getType()) {
+                    boolean result = leftNode.getType() == NodeResult.NodeResultType.BOOL ? leftNode.getBoolValue() && rightNode.getIntValue()>0 : rightNode.getBoolValue() && leftNode.getIntValue()>0;
+                    return new NodeResult(result);
+                }
+            }
+
+            if(operation == NodeOperation.OR) {
+                if(leftNode.getType() == NodeResult.NodeResultType.BOOL && leftNode.getType() == rightNode.getType()) {
                     return new NodeResult(leftNode.getBoolValue() || rightNode.getBoolValue());
                 }
 
-                /* should be in separate check (have only one child)
-                if (operation == NodeOperation.NOT) {
-                    return nodesResult.get(0) || nodesResult.get(1);
-                }*/
+                if(leftNode.getType() == NodeResult.NodeResultType.INT && leftNode.getType() == rightNode.getType()) {
+                    return new NodeResult(leftNode.getIntValue()>0 || rightNode.getIntValue()>0);
+                }
+
+                if((leftNode.getType() == NodeResult.NodeResultType.BOOL || leftNode.getType() == NodeResult.NodeResultType.INT) && (rightNode.getType() == NodeResult.NodeResultType.BOOL || rightNode.getType() == NodeResult.NodeResultType.INT) && leftNode.getType() != rightNode.getType()) {
+                    boolean result = leftNode.getType() == NodeResult.NodeResultType.BOOL ? leftNode.getBoolValue() || rightNode.getIntValue()>0 : rightNode.getBoolValue() || leftNode.getIntValue()>0;
+                    return new NodeResult(result);
+                }
             }
 
-            if(leftNode.getType() == NodeResult.NodeResultType.INT && leftNode.getType() == rightNode.getType()) {
+            if(operation == NodeOperation.NOT) {
+                if(rightNode.getType() == NodeResult.NodeResultType.BOOL) {
+                    return new NodeResult(!rightNode.getBoolValue());
+                }
+
+                if(rightNode.getType() == NodeResult.NodeResultType.INT) {
+                    return new NodeResult((rightNode.getIntValue()==0));
+                }
+            }
+
+            if(leftNode.getType() != NodeResult.NodeResultType.SKIP && rightNode.getType() != NodeResult.NodeResultType.SKIP) {
+                //conversion
+                int leftNodeValue = leftNode.getType() == NodeResult.NodeResultType.INT ? leftNode.getIntValue() : (leftNode.getBoolValue() ? 1 : 0);
+                int rightNodeValue = rightNode.getType() == NodeResult.NodeResultType.INT ? rightNode.getIntValue() : (rightNode.getBoolValue() ? 1 : 0);
+
                 //handle int operations
                 if (operation == NodeOperation.GT) {
-                    return new NodeResult(leftNode.getIntValue() > rightNode.getIntValue());
+                    return new NodeResult(leftNodeValue > rightNodeValue);
                 }
                 if (operation == NodeOperation.LT) {
-                    return new NodeResult(leftNode.getIntValue() < rightNode.getIntValue());
+                    return new NodeResult(leftNodeValue < rightNodeValue);
                 }
                 if (operation == NodeOperation.EQEQ) {
-                    return new NodeResult(leftNode.getIntValue() == rightNode.getIntValue());
+                    return new NodeResult(leftNodeValue == rightNodeValue);
                 }
                 if (operation == NodeOperation.NE) {
-                    return new NodeResult(leftNode.getIntValue() != rightNode.getIntValue());
+                    return new NodeResult(leftNodeValue != rightNodeValue);
                 }
 
                 //to do add plus, minus, etc
                 if(operation == NodeOperation.PLUS) {
-                    return new NodeResult(leftNode.getIntValue()+rightNode.getIntValue());
+                    return new NodeResult(leftNodeValue + rightNodeValue);
                 }
 
             }
-            //if different types it's wrong show notification ?
+            //show extra message something wrong with logic?
             return new NodeResult();
         }
 
